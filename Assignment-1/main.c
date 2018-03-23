@@ -3,7 +3,18 @@
 
 void setUpMisc(void)
 {
+    // set global variable default values
     currentState = 0; // Default to non-maintance mode
+
+    // create queues
+    freqForDisplay = xQueueCreate(20, sizeof(double));
+    changeInFreqForDisplay = xQueueCreate(20, sizeof(double));
+    rawFreqData = xQueueCreate(5, sizeof(unsigned int));
+    keyboardData = xQueueCreate(100, sizeof(char));
+
+    // create binary semaphores
+    keyboardSemaphore = xSemaphoreCreateBinary();
+    freqRelaySemaphore = xSemaphoreCreateBinary();
 }
 
 void setUpISRs(void)
@@ -15,8 +26,11 @@ void setUpISRs(void)
     // enable interrupts for all buttons
     IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 
-    // register the ISR
+    // register the buttons ISR
     alt_irq_register(PUSH_BUTTON_IRQ, (void*)&buttonValue, ButtonInterruptsFunction);
+
+    // register the frequency relay ISR
+    alt_irq_register(FREQUENCY_ANALYSER_IRQ, 0, FreqRelayInterrupt);
 }
 
 void setUpTasks(void)

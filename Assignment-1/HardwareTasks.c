@@ -25,3 +25,14 @@ void ButtonInterruptsFunction(void* context, alt_u32 id)
     if (currentState == 0) currentState = 1;
     else currentState = 0;
 }
+
+/**
+ * Reads frequency data from the hardware component and adds it
+ * to end of a queue for later processing.
+ */
+void FreqRelayInterrupt(void* context, alt_u32 id)
+{
+    unsigned int temp = IORD(FREQUENCY_ANALYSER_BASE, 0);
+    xQueueSendToBackFromISR(rawFreqData, &temp, pdFALSE);
+    xSemaphoreGiveFromISR(freqRelaySemaphore, pdTRUE);
+}

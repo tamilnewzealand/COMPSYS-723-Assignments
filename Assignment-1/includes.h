@@ -31,3 +31,6 @@ static void MainController(void *pvParameters);
 static void HumanInteractions(void *pvParameters);
 static void LEDController(void *pvParameters);
 static void SwitchPoll(void *pvParameters);
+
+/* ISR Prototypes. */
+void ButtonInterruptsFunction(void* context, alt_u32 id);

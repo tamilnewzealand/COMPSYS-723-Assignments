@@ -5,9 +5,19 @@ static void LEDController(void *pvParameters)
     return;
 }
 
+/**
+ * Polls the switches and writes their current status to a global variable.
+ */
 static void SwitchPoll(void *pvParameters)
 {
-    return;
+    const TickType_t xDelay = 10 / portTICK_PERIOD_MS;
+
+    while(1)
+    {
+        // read the value of the switch and store
+        loadStatusSwitch = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
+        vTaskDelay(xDelay);
+    }
 }
 
 /**

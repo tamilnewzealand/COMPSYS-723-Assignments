@@ -1,8 +1,28 @@
 #include "includes.h"
 
+/**
+ * Calculates the current status of the loads and sets the LEDs appropriately.
+ * In normal mode will read from two variables coming from the controller and
+ * switches while in maintenance mode will only read from the switches.
+ */
 static void LEDController(void *pvParameters)
 {
-    return;
+    const TickType_t xDelay = 10 / portTICK_PERIOD_MS;
+    int loadStatus;
+
+    while(1)
+    {
+        // not in maintenance mode
+        if (currentState == 0) { loadStatus = loadStatusController & loadStatusSwitch; }
+        // in maintenance mode
+        else { loadStatus = loadStatusSwitch; }
+
+        // write the status of the loads to the RED and GREEN LEDs
+        IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, loadStatus);
+        IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ~loadStatus);
+
+        vTaskDelay(xDelay);
+    }
 }
 
 /**

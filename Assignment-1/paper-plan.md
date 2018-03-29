@@ -1,6 +1,6 @@
 # Paper Plan for Assignment 1
 
-*March 21, 2018 - Joshua Gudsell & Sakayan Sitsabesan*
+*March 29, 2018 - Joshua Gudsell & Sakayan Sitsabesan*
 
 ## Tasks
 
@@ -66,6 +66,7 @@
 * thresholdFreq - uint8_t
     * Stores the value of the currently set frequency threshold
 * overThreshold - bool
+    * Set to true if the either threshold condition has been violated, otherwise false
 ## Queues
 
 * freqForDisplay
@@ -92,5 +93,19 @@
 
 *insert FSM diagram here*
 
-## Doubts??
-* Is frequency stored in memory or as a function (ie. dynamic)?
+## Use Case
+A frequency value lower than the threshold is read by the frequency analyser. The system was in the stable state prior to this event and has been monitoring the frequency (i.e. not in maintenance mode).
+After 20 milliseconds, a new frequency reading above the threshold is read.
+
+*Our steps to respond to this change are as follows*
+
+1. The FrequencyRelayISR will detect the frequency (below threshold) set the freqRelaySemaphore, it will also set the overThreshold global variable to true.
+2. This will cause the MainController FSM to move into the shed load state.
+3. The MainController FSM will then move into the monitor state. At the same time start the Timer Callback function is started.
+4. The MainController FSM will stay in the monitoring state.
+5. The FrequencyRelayISR will then detect the new frequency (above threshold) and will set the overThreshold global variable to false.
+6. The Timer Callback function will restart the 500ms Timer due to the change in the overThreshold variable.
+7. The MainController will stay in the monitoring state until the overThreshold variable has been constant for 500ms and will then react accordingly.
+
+
+

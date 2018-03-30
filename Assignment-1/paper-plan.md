@@ -2,6 +2,24 @@
 
 *March 29, 2018 - Joshua Gudsell & Sakayan Sitsabesan*
 
+## Block Diagram
+
+![](BlockDiagram.png)
+
+## Use Case
+
+A frequency value lower than the threshold is read by the frequency analyser. The system was in the stable state prior to this event and has been monitoring the frequency (i.e. not in maintenance mode).
+After 20 milliseconds, a new frequency reading above the threshold is read.
+
+*Our steps to respond to this change are as follows:*
+
+1. The FrequencyRelayISR will read the frequency and pass on the value to the MainController and set the freqRelaySemaphore to trigger the MainController.
+2. This will cause the MainController FSM to move into the shed load state and remove one of the loads.
+3. The MainController FSM will then move into the monitor state, the timeout timer will be started.
+4. The MainController FSM will stay in the monitoring state.
+5. The MainController FSM will then detect the new frequency as above the threshold and will reset the timeout timer due to a change in the frequency.
+7. The MainController will stay in the monitoring state until the timeoutCallback function is called which will trigger the MainController to move into the reconnectLoad state using the timeoutFinish global variable.
+
 ## Tasks
 
 * VGAController (Priority 1)
@@ -14,6 +32,7 @@
     * Condition: Wait on freqRelaySemaphore
     * Queues read: rawFreqData
     * Queues written: freqForDisplay, changeInFreqForDisplay
+    * Variables read: thresholdROC, timeoutFinish
     * Variables written: loadStatusController
 * HumanInteractions (Priority 1)
     * Description: Controls all interactions with the computer via keyboard/screen. Calculates and stores new threshold values based on these interactions.
@@ -65,8 +84,9 @@
     * Stores the value of the currently set Rate of Change threshold
 * thresholdFreq - uint8_t
     * Stores the value of the currently set frequency threshold
-* overThreshold - bool
-    * Set to true if the either threshold condition has been violated, otherwise false
+* timeoutFinish - bool
+    * True - timeout of 500ms has been completed without any resets
+    * False - timeout yet to be completed
 ## Queues
 
 * freqForDisplay
@@ -86,26 +106,9 @@
 ## Timer Callback Function
 
 * timeoutCallback
-    * Description: Sets appropriate timeout variable and also sets freqRelaySemaphore
+    * Description: Sets timeoutFinish variable and also sets freqRelaySemaphore
     * Condition: Callback function after 500ms have timed out from when system became stable/unstable
 
 ## FSM Diagram
 
-*insert FSM diagram here*
-
-## Use Case
-A frequency value lower than the threshold is read by the frequency analyser. The system was in the stable state prior to this event and has been monitoring the frequency (i.e. not in maintenance mode).
-After 20 milliseconds, a new frequency reading above the threshold is read.
-
-*Our steps to respond to this change are as follows*
-
-1. The FrequencyRelayISR will detect the frequency (below threshold) set the freqRelaySemaphore, it will also set the overThreshold global variable to true.
-2. This will cause the MainController FSM to move into the shed load state.
-3. The MainController FSM will then move into the monitor state. At the same time start the Timer Callback function is started.
-4. The MainController FSM will stay in the monitoring state.
-5. The FrequencyRelayISR will then detect the new frequency (above threshold) and will set the overThreshold global variable to false.
-6. The Timer Callback function will restart the 500ms Timer due to the change in the overThreshold variable.
-7. The MainController will stay in the monitoring state until the overThreshold variable has been constant for 500ms and will then react accordingly.
-
-
-
+![](ControlFSM.png)

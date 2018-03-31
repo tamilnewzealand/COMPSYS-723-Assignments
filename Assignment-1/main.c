@@ -14,6 +14,8 @@
 #include <sys/alt_irq.h>
 #include <alt_types.h>
 #include <altera_avalon_pio_regs.h>
+#include "altera_up_avalon_ps2.h"
+#include "altera_up_ps2_keyboard.h"
 
 /* Global Variables. */
 static volatile int currentState;
@@ -234,6 +236,24 @@ static void MainController(void *pvParameters)
     }
 }
 
+void KeyboardISR (void* context, alt_u32 id)
+{
+    char ascii;
+    int status = 0;
+    unsigned char key = 0;
+    unsigned char code;
+    KB_CODE_TYPE decode_mode;
+    status = decode_scancode (context, &decode_mode , &key , &ascii) ;
+    if ( status == 0 ) //success
+    {
+        if (decode_mode == KB_ASCII_MAKE_CODE) { code = ascii; }
+        if ((key == 0x75) || (key == 0x6B) || (key == 0x72) || (key == 0x74) || (key == 0x5A)) { code = key; }
+        if (key == 0x76 ) { code = 27; }
+        if ((code == 204) || (code == 1)) { return; }
+        xQueueSendToBackFromISR(keyboardData, &code, pdFALSE);
+    }
+}
+
 /**
  * Toggles the maintenance mode on any of the buttons being pressed.
  */
@@ -302,6 +322,15 @@ void SetUpMisc(void)
 void SetUpISRs(void)
 {
     int buttonValue = 0;
+
+    // open the PS/2 keyboard device for reading
+    alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+
+    // clear the fifo buffer on the ps/2 device
+    alt_up_ps2_clear_fifo (ps2_device) ;
+
+    // register the keyboard ISR
+    alt_irq_register(PS2_IRQ, ps2_device, KeyboardISR);
 
     // clears the edge capture register
     IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0);

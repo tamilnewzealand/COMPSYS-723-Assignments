@@ -105,7 +105,7 @@ After 20 milliseconds, a new frequency reading above the threshold is read.
 
 ## Timer Callback Function
 
-* timeoutCallback
+* vTimeoutCallback
     * Description: Sets timeoutFinish variable and also sets freqRelaySemaphore
     * Condition: Callback function after 500ms have timed out from when system became stable/unstable
 

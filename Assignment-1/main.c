@@ -12,16 +12,16 @@
 /* Altera includes. */
 #include <sys/alt_alarm.h>
 #include <sys/alt_irq.h>
-#include <altera_avalon_pio_regs.h>
 #include <alt_types.h>
+#include <altera_avalon_pio_regs.h>
 
 /* Global Variables. */
 static volatile int currentState;
 static volatile int loadStatusSwitch;
 static volatile int loadStatusController;
-static volatile int thresholdROC;
-static volatile int thresholdFreq;
-static volatile int overThreshold;
+static volatile double thresholdROC;
+static volatile double thresholdFreq;
+static volatile int timeoutFinish;
 
 /* Queues */
 static QueueHandle_t freqForDisplay;
@@ -41,8 +41,16 @@ static void SwitchPoll(void *pvParameters);
 static void MainController(void *pvParameters);
 
 /* ISR Prototypes. */
-void ButtonInterruptsFunction(void* context, alt_u32 id);
-void FreqRelayInterrupt(void* context, alt_u32 id);
+void KeyboardISR(void* context, alt_u32 id);
+void PushButtonISR(void* context, alt_u32 id);
+void FrequencyRelayISR(void* context, alt_u32 id);
+
+/* Timer Callbacks */
+void vTimeoutCallback(xTimerHandle t_timer);
+
+/* FSM state type */
+enum state { stable, shedLoad, monitor, reconnectLoad };
+typedef enum state state_t;
 
 /**
  * This task will read the data coming from the other tasks/ISRs and display the
@@ -110,9 +118,16 @@ static void SwitchPoll(void *pvParameters)
 static void MainController(void *pvParameters)
 {
     int rawFreqValue;
+    int timeoutDirection = 0;
+    int nextToDisconnect;
     double oldFreqValue;
     double newFreqValue;
     double newRateOfChange;
+
+    TimerHandle_t timeoutTimer = xTimerCreate("Timeout Timer", pdMS_TO_TICKS(500), pdFALSE, NULL, vTimeoutCallback);
+
+    state_t curState = stable;
+    state_t nextState = stable;
 
     while(1)
     {
@@ -134,13 +149,95 @@ static void MainController(void *pvParameters)
         // send calculated freq and ROC values to queue for VGA controller task
         xQueueSendToBack(freqForDisplay, &newFreqValue, 0);
         xQueueSendToBack(changeInFreqForDisplay, &newRateOfChange, 0);
+
+        // next state logic
+        switch(curState)
+        {
+            case stable:
+                if ((newFreqValue < thresholdFreq) || (newRateOfChange > thresholdROC)) { nextState = shedLoad; }
+                else { nextState = stable; }
+                break;
+            case shedLoad:
+                nextState = monitor;
+                break;
+            case monitor:
+                if (timeoutFinish == 1)
+                {
+                    if (timeoutDirection == 1) { nextState = shedLoad; }
+                    if (timeoutDirection == 2) { nextState = reconnectLoad; }
+                }
+                else { nextState = monitor; }
+                break;
+            case reconnectLoad:
+                if (nextToDisconnect == 0) { nextState = stable; }
+                else { nextState = monitor; }
+                break;
+        }
+
+        // output logic
+        switch(nextState)
+        {
+            case stable:
+                break;
+            case shedLoad:
+                // disconnect load from system
+                loadStatusController &= ~(1UL << nextToDisconnect);
+                // increment last removed load counter
+                nextToDisconnect++;
+                // reset monitor state variables
+                timeoutDirection = 0;
+                timeoutFinish = 0;
+                break;
+            case monitor:
+                // just entered into monitor state
+                if (timeoutDirection == 0)
+                {
+                    // set whether next load should be disconnected or reconnected
+                    if ((newFreqValue < thresholdFreq) || (newRateOfChange > thresholdROC)) { timeoutDirection = 1; }
+                    else { timeoutDirection = 2; }
+                    // start the timer
+                    xTimerStart(timeoutTimer, 0);
+                }
+                // currently unstable, waiting to disconnect lowest rank load
+                else if (timeoutDirection == 1)
+                {
+                    // change in situation, restart the timer
+                    if ((newFreqValue > thresholdFreq) || (newRateOfChange < thresholdROC))
+                    {
+                        timeoutDirection = 2;
+                        xTimerStart(timeoutTimer, 0);
+                    }
+                }
+                // currently stable, waiting to reconnect highest rank load
+                else if (timeoutDirection == 2)
+                {
+                    // change in situation, restart the timer
+                    if ((newFreqValue < thresholdFreq) || (newRateOfChange > thresholdROC))
+                    {
+                        timeoutDirection = 1;
+                        xTimerStart(timeoutTimer, 0);
+                    }
+                }
+                break;
+            case reconnectLoad:
+                // decrement last removed load counter
+                nextToDisconnect--;
+                // reconnect load to system
+                loadStatusController |= (1UL << nextToDisconnect);
+                // reset monitor state variables
+                timeoutDirection = 0;
+                timeoutFinish = 0;
+                break;
+        }
+        
+        curState = nextState;
     }
 }
 
 /**
  * Toggles the maintenance mode on any of the buttons being pressed.
  */
-void ButtonInterruptsFunction(void* context, alt_u32 id)
+void PushButtonISR(void* context, alt_u32 id)
 {
     // need to cast the context first before using it
     int* temp = (int*) context;
@@ -157,10 +254,20 @@ void ButtonInterruptsFunction(void* context, alt_u32 id)
  * Reads frequency data from the hardware component and adds it
  * to end of a queue for later processing.
  */
-void FreqRelayInterrupt(void* context, alt_u32 id)
+void FrequencyRelayISR(void* context, alt_u32 id)
 {
     unsigned int temp = IORD(FREQUENCY_ANALYSER_BASE, 0);
     xQueueSendToBackFromISR(rawFreqData, &temp, pdFALSE);
+    xSemaphoreGiveFromISR(freqRelaySemaphore, pdTRUE);
+}
+
+/**
+ * Sets the timeoutFinish flag variable and gives a semaphore
+ * to trigger the MainController Task to run.
+ */
+void vTimeoutCallback(xTimerHandle t_timer)
+{
+    timeoutFinish = 1;
     xSemaphoreGiveFromISR(freqRelaySemaphore, pdTRUE);
 }
 
@@ -173,10 +280,10 @@ void SetUpMisc(void)
     // set global variable default values
     currentState = 0; // Default to non-maintance mode
     loadStatusSwitch = 0;
-    loadStatusController = 0;
-    thresholdROC = 0;
-    thresholdFreq = 0;
-    overThreshold = 0;
+    loadStatusController = 0xFF;
+    thresholdROC = 0.6;
+    thresholdFreq = 43.7;
+    timeoutFinish = 0;
 
     // create queues
     freqForDisplay = xQueueCreate(20, sizeof(double));
@@ -202,10 +309,10 @@ void SetUpISRs(void)
     IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 
     // register the buttons ISR
-    alt_irq_register(PUSH_BUTTON_IRQ, (void*)&buttonValue, ButtonInterruptsFunction);
+    alt_irq_register(PUSH_BUTTON_IRQ, (void*)&buttonValue, PushButtonISR);
 
     // register the frequency relay ISR
-    alt_irq_register(FREQUENCY_ANALYSER_IRQ, 0, FreqRelayInterrupt);
+    alt_irq_register(FREQUENCY_ANALYSER_IRQ, 0, FrequencyRelayISR);
 }
 
 /**

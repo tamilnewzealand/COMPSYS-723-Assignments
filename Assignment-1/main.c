@@ -89,6 +89,8 @@ typedef struct{
  */
 static void VGAController(void *pvParameters)
 {
+	char keypressed;
+	
     	alt_up_pixel_buffer_dma_dev *pixel_buf;
 	pixel_buf = alt_up_pixel_buffer_dma_open_dev(VIDEO_PIXEL_BUFFER_DMA_NAME);
 	if(pixel_buf == NULL){
@@ -134,7 +136,9 @@ static void VGAController(void *pvParameters)
 	alt_up_char_buffer_string(char_buf, "ROC threshold(Hz/sec):", 40, 40);
 	alt_up_char_buffer_string(char_buf, "Reaction times(ms):    ,    ,    ,    ,", 5, 45);
 	alt_up_char_buffer_string(char_buf, "System status:", 52, 45);
-	alt_up_char_buffer_string(char_buf, "Min(ms):     Max(ms):     Avg(ms):     Uptime(s):", 8, 50);	
+	alt_up_char_buffer_string(char_buf, "Min(ms):     Max(ms):     Avg(ms):     Uptime(s):", 8, 50);
+	alt_up_char_buffer_string(char_buf, "Lower threshold(Hz):", 11, 55);
+	alt_up_char_buffer_string(char_buf, "ROC threshold(Hz/sec):", 40, 55);
 
 	while(1){
 
@@ -199,6 +203,13 @@ static void VGAController(void *pvParameters)
 		unsigned int uptime = xTaskGetTickCount()/1000;
 		char uptimeBuffer [sizeof(unsigned int)*8+1];
 		(void) sprintf(uptimeBuffer, "%u", uptime);
+		
+		//Check incoming keyboard inputs 
+		// wait on semaphore
+        xSemaphoreTake(keyboardSemaphore, portMAX_DELAY);  
+        
+        // check for any updates of new data
+        xQueueReceive(keyboardData, &keypressed, 0);
 
         //Clear text that is being updated
 		alt_up_char_buffer_string(char_buf, "    ", 32, 40); 
@@ -213,7 +224,9 @@ static void VGAController(void *pvParameters)
 		alt_up_char_buffer_string(char_buf, "   ", 30, 50); 
 		alt_up_char_buffer_string(char_buf, "   ", 43, 50);
 		alt_up_char_buffer_string(char_buf, "        ", 58, 50);
-
+		alt_up_char_buffer_string(char_buf, "    ", 32, 55); 
+		alt_up_char_buffer_string(char_buf, "    ", 63, 55);		
+		
 		//populate fields below the graph
 		//TODO: Make these data driven
 		alt_up_char_buffer_string(char_buf, "47.3", 32, 40); //Lower threshold
@@ -228,6 +241,8 @@ static void VGAController(void *pvParameters)
 		alt_up_char_buffer_string(char_buf, "499", 30, 50); //Max reaction time
 		alt_up_char_buffer_string(char_buf, "213", 43, 50); //Avg reaction time
 		alt_up_char_buffer_string(char_buf, uptimeBuffer, 58, 50); //Uptime
+		alt_up_char_buffer_string(char_buf, keyPressed, 32, 55);  //Lower threshold updating value
+		alt_up_char_buffer_string(char_buf, "temp", 63, 55); //ROC threshold updating value
 
 		//delay the task then refresh the display
 		vTaskDelay(10);

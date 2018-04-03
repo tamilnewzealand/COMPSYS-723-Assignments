@@ -393,6 +393,12 @@ static void MainController(void *pvParameters)
     }
 }
 
+/**
+ * Reads and records the key presses registered on the PS/2 keyboard.
+ * Filters out only ASCII keys, Arrow Keys, Enter and escape. All other
+ * keys are ignored and not passed on. Sends key to back of queue which
+ * will trigger the HumanInteractions to handle the user input.
+ */
 void KeyboardISR (void* context, alt_u32 id)
 {
     char ascii;

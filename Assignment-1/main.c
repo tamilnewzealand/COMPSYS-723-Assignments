@@ -200,6 +200,20 @@ static void VGAController(void *pvParameters)
 		char uptimeBuffer [sizeof(unsigned int)*8+1];
 		(void) sprintf(uptimeBuffer, "%u", uptime);
 
+        //Clear text that is being updated
+		alt_up_char_buffer_string(char_buf, "    ", 32, 40); 
+		alt_up_char_buffer_string(char_buf, "    ", 63, 40); 
+		alt_up_char_buffer_string(char_buf, "   ", 25, 45); 
+		alt_up_char_buffer_string(char_buf, "   ", 30, 45);
+		alt_up_char_buffer_string(char_buf, "   ", 35, 45);
+		alt_up_char_buffer_string(char_buf, "   ", 40, 45);
+		alt_up_char_buffer_string(char_buf, "   ", 45, 45); 
+		alt_up_char_buffer_string(char_buf, "           ", 67, 45); 
+		alt_up_char_buffer_string(char_buf, "   ", 17, 50); 
+		alt_up_char_buffer_string(char_buf, "   ", 30, 50); 
+		alt_up_char_buffer_string(char_buf, "   ", 43, 50);
+		alt_up_char_buffer_string(char_buf, "        ", 58, 50);
+
 		//populate fields below the graph
 		//TODO: Make these data driven
 		alt_up_char_buffer_string(char_buf, "47.3", 32, 40); //Lower threshold

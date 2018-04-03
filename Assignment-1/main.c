@@ -52,7 +52,6 @@ static QueueHandle_t rawFreqData;
 static QueueHandle_t keyboardData;
 
 /* Semaphores */
-SemaphoreHandle_t keyboardSemaphore;
 SemaphoreHandle_t freqRelaySemaphore;
 
 /* Function Prototypes. */
@@ -74,6 +73,9 @@ void vTimeoutCallback(xTimerHandle t_timer);
 enum state { stable, shedLoad, monitor, reconnectLoad };
 typedef enum state state_t;
 
+static volatile state_t curState = stable;
+static volatile state_t nextState = stable;
+
 /* Line Type for Display */
 typedef struct{
 	unsigned int x1;
@@ -89,9 +91,10 @@ typedef struct{
  */
 static void VGAController(void *pvParameters)
 {
-	char keypressed;
+	char keyPressed = 0x55;
+	const TickType_t xDelay = 40 / portTICK_PERIOD_MS;
 	
-    	alt_up_pixel_buffer_dma_dev *pixel_buf;
+    alt_up_pixel_buffer_dma_dev *pixel_buf;
 	pixel_buf = alt_up_pixel_buffer_dma_open_dev(VIDEO_PIXEL_BUFFER_DMA_NAME);
 	if(pixel_buf == NULL){
 		printf("can't find pixel buffer device\n");
@@ -192,11 +195,9 @@ static void VGAController(void *pvParameters)
 		}
 		//Check the system status
 		char systemStatus[12];
-		if (currentState == 1){  //In maintenance mode
-			strncpy(systemStatus, "Maintenance", sizeof(systemStatus));
-		}else{
-			strncpy(systemStatus, "Unstable", sizeof(systemStatus));
-		}
+		if (currentState == 1) { strncpy(systemStatus, "Maintenance", sizeof(systemStatus)); }
+        else if (curState == stable) { strncpy(systemStatus, "Stable", sizeof(systemStatus)); }
+        else { strncpy(systemStatus, "Unstable", sizeof(systemStatus)); }
 
 		//Get the System uptime based on freeRTOS TickCount which measures in ms,
 		//Then format it into a string to display
@@ -204,12 +205,8 @@ static void VGAController(void *pvParameters)
 		char uptimeBuffer [sizeof(unsigned int)*8+1];
 		(void) sprintf(uptimeBuffer, "%u", uptime);
 		
-		//Check incoming keyboard inputs 
-		// wait on semaphore
-        xSemaphoreTake(keyboardSemaphore, portMAX_DELAY);  
-        
         // check for any updates of new data
-        xQueueReceive(keyboardData, &keypressed, 0);
+		xQueueReceive(keyboardData, &keyPressed, 0);
 
         //Clear text that is being updated
 		alt_up_char_buffer_string(char_buf, "    ", 32, 40); 
@@ -245,7 +242,7 @@ static void VGAController(void *pvParameters)
 		alt_up_char_buffer_string(char_buf, "temp", 63, 55); //ROC threshold updating value
 
 		//delay the task then refresh the display
-		vTaskDelay(10);
+		vTaskDelay(xDelay);
 
 	}
 }
@@ -313,9 +310,6 @@ static void MainController(void *pvParameters)
     double newRateOfChange;
 
     TimerHandle_t timeoutTimer = xTimerCreate("Timeout Timer", pdMS_TO_TICKS(500), pdFALSE, NULL, vTimeoutCallback);
-
-    state_t curState = stable;
-    state_t nextState = stable;
 
     while(1)
     {
@@ -504,7 +498,6 @@ void SetUpMisc(void)
     keyboardData = xQueueCreate(100, sizeof(char));
 
     // create binary semaphores
-    keyboardSemaphore = xSemaphoreCreateBinary();
     freqRelaySemaphore = xSemaphoreCreateBinary();
 }
 

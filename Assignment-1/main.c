@@ -93,7 +93,7 @@ static void VGAController(void *pvParameters)
 {
 	char keyPressed = 0x55;
 	const TickType_t xDelay = 40 / portTICK_PERIOD_MS;
-	
+
     alt_up_pixel_buffer_dma_dev *pixel_buf;
 	pixel_buf = alt_up_pixel_buffer_dma_open_dev(VIDEO_PIXEL_BUFFER_DMA_NAME);
 	if(pixel_buf == NULL){
@@ -196,7 +196,7 @@ static void VGAController(void *pvParameters)
 		//Check the system status
 		char systemStatus[12];
 		if (currentState == 1) { strncpy(systemStatus, "Maintenance", sizeof(systemStatus)); }
-        else if (curState == stable) { strncpy(systemStatus, "Stable", sizeof(systemStatus)); }
+        else if (nextState == stable) { strncpy(systemStatus, "Stable", sizeof(systemStatus)); }
         else { strncpy(systemStatus, "Unstable", sizeof(systemStatus)); }
 
 		//Get the System uptime based on freeRTOS TickCount which measures in ms,
@@ -204,26 +204,26 @@ static void VGAController(void *pvParameters)
 		unsigned int uptime = xTaskGetTickCount()/1000;
 		char uptimeBuffer [sizeof(unsigned int)*8+1];
 		(void) sprintf(uptimeBuffer, "%u", uptime);
-		
+
         // check for any updates of new data
 		xQueueReceive(keyboardData, &keyPressed, 0);
 
         //Clear text that is being updated
-		alt_up_char_buffer_string(char_buf, "    ", 32, 40); 
-		alt_up_char_buffer_string(char_buf, "    ", 63, 40); 
-		alt_up_char_buffer_string(char_buf, "   ", 25, 45); 
+		alt_up_char_buffer_string(char_buf, "    ", 32, 40);
+		alt_up_char_buffer_string(char_buf, "    ", 63, 40);
+		alt_up_char_buffer_string(char_buf, "   ", 25, 45);
 		alt_up_char_buffer_string(char_buf, "   ", 30, 45);
 		alt_up_char_buffer_string(char_buf, "   ", 35, 45);
 		alt_up_char_buffer_string(char_buf, "   ", 40, 45);
-		alt_up_char_buffer_string(char_buf, "   ", 45, 45); 
-		alt_up_char_buffer_string(char_buf, "           ", 67, 45); 
-		alt_up_char_buffer_string(char_buf, "   ", 17, 50); 
-		alt_up_char_buffer_string(char_buf, "   ", 30, 50); 
+		alt_up_char_buffer_string(char_buf, "   ", 45, 45);
+		alt_up_char_buffer_string(char_buf, "           ", 67, 45);
+		alt_up_char_buffer_string(char_buf, "   ", 17, 50);
+		alt_up_char_buffer_string(char_buf, "   ", 30, 50);
 		alt_up_char_buffer_string(char_buf, "   ", 43, 50);
 		alt_up_char_buffer_string(char_buf, "        ", 58, 50);
-		alt_up_char_buffer_string(char_buf, "    ", 32, 55); 
-		alt_up_char_buffer_string(char_buf, "    ", 63, 55);		
-		
+		alt_up_char_buffer_string(char_buf, "    ", 32, 55);
+		alt_up_char_buffer_string(char_buf, "    ", 63, 55);
+
 		//populate fields below the graph
 		//TODO: Make these data driven
 		alt_up_char_buffer_string(char_buf, "47.3", 32, 40); //Lower threshold
@@ -304,7 +304,7 @@ static void MainController(void *pvParameters)
 {
     int rawFreqValue;
     int timeoutDirection = 0;
-    int nextToDisconnect;
+    int nextToDisconnect = 0;
     double oldFreqValue;
     double newFreqValue;
     double newRateOfChange;
@@ -315,13 +315,13 @@ static void MainController(void *pvParameters)
     {
     	// wait on semaphore
         xSemaphoreTake(freqRelaySemaphore, portMAX_DELAY);
-        
+
         // check for any updates of new data
         xQueueReceive(rawFreqData, &rawFreqValue, 0);
 
         // store old freq value
         oldFreqValue = newFreqValue;
-        
+
         // calculate the new freq of the power
         newFreqValue = 16000 / (double)rawFreqValue;
 
@@ -384,7 +384,7 @@ static void MainController(void *pvParameters)
                 else if (timeoutDirection == 1)
                 {
                     // change in situation, restart the timer
-                    if ((newFreqValue > thresholdFreq) || (newRateOfChange < thresholdROC))
+                    if ((newFreqValue > thresholdFreq) && (newRateOfChange < thresholdROC))
                     {
                         timeoutDirection = 2;
                         xTimerStart(timeoutTimer, 0);
@@ -411,7 +411,7 @@ static void MainController(void *pvParameters)
                 timeoutFinish = 0;
                 break;
         }
-        
+
         curState = nextState;
     }
 }
@@ -478,7 +478,7 @@ void vTimeoutCallback(xTimerHandle t_timer)
 }
 
 /**
- * Sets up all the global variables and initializes the 
+ * Sets up all the global variables and initializes the
  * semaphores and queues used in the program.
  */
 void SetUpMisc(void)
@@ -487,8 +487,8 @@ void SetUpMisc(void)
     currentState = 0; // Default to non-maintance mode
     loadStatusSwitch = 0;
     loadStatusController = 0xFF;
-    thresholdROC = 0.6;
-    thresholdFreq = 43.7;
+    thresholdROC = 60;
+    thresholdFreq = 49;
     timeoutFinish = 0;
 
     // create queues

@@ -46,6 +46,7 @@ static volatile double thresholdFreq;
 static volatile int timeoutFinish;
 static volatile int timeOfDetection;
 static volatile int lastReactionTime;
+static volatile int keyboardDebounce;
 
 /* Queues */
 static QueueHandle_t freqForDisplay;
@@ -257,12 +258,19 @@ static void VGAController(void *pvParameters)
 		(void) sprintf(reactBufferE, "%u", reactionTimes[4]);
 
         char lowThresBuffer [sizeof(unsigned int)*8+1];
-		(void) sprintf(lowThresBuffer, "%u", thresholdFreq);
+		(void) sprintf(lowThresBuffer, "%.1f", thresholdFreq);
         char highThresBuffer [sizeof(unsigned int)*8+1];
-		(void) sprintf(highThresBuffer, "%u", thresholdROC);
+		(void) sprintf(highThresBuffer, "%.1f", thresholdROC);
 
         // check for any updates of new data
-		xQueueReceive(keyboardData, &keyPressed, 0);
+		while(uxQueueMessagesWaiting(keyboardData) != 0){
+			xQueueReceive(keyboardData, &keyPressed, 0);
+			printf("data received!");
+		}
+
+		 char tempThresholdROCBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(tempThresholdROCBuffer, "%d", keyPressed);
+
 
         //Clear text that is being updated
 		alt_up_char_buffer_string(char_buf, "    ", 32, 40);
@@ -294,7 +302,7 @@ static void VGAController(void *pvParameters)
 		alt_up_char_buffer_string(char_buf, maxreactBuffer, 30, 50); //Max reaction time
 		alt_up_char_buffer_string(char_buf, avgreactBuffer, 43, 50); //Avg reaction time
 		alt_up_char_buffer_string(char_buf, uptimeBuffer, 58, 50); //Uptime
-		alt_up_char_buffer_string(char_buf, keyPressed, 32,  55);  //Lower threshold updating value
+		alt_up_char_buffer_string(char_buf, tempThresholdROCBuffer, 32,  55);  //Lower threshold updating value
 		alt_up_char_buffer_string(char_buf, "temp", 63, 55); //ROC threshold updating value
 
 		//delay the task then refresh the display
@@ -483,19 +491,39 @@ static void MainController(void *pvParameters)
  */
 void KeyboardISR (void* context, alt_u32 id)
 {
+	printf("inside ISR");
+	keyboardDebounce = keyboardDebounce + 1;
     char ascii;
     int status = 0;
     unsigned char key = 0;
-    unsigned char code;
+    unsigned char val;
     KB_CODE_TYPE decode_mode;
     status = decode_scancode (context, &decode_mode , &key , &ascii) ;
     if ( status == 0 ) //success
     {
-        if (decode_mode == KB_ASCII_MAKE_CODE) { code = ascii; }
-        if ((key == 0x75) || (key == 0x6B) || (key == 0x72) || (key == 0x74) || (key == 0x5A)) { code = key; }
-        if (key == 0x76 ) { code = 27; }
-        if ((code == 204) || (code == 1)) { return; }
-        xQueueSendToBackFromISR(keyboardData, &code, pdFALSE);
+    	//read keycodes for number row and parse into thier respective value
+        if(key == 0x45){val = 0;}
+        if(key == 0x16){val = 1;}
+        if(key == 0x1E){val = 2;}
+        if(key == 0x26){val = 3;}
+        if(key == 0x25){val = 4;}
+        if(key == 0x2E){val = 5;}
+        if(key == 0x36){val = 6;}
+        if(key == 0x3D){val = 7;}
+        if(key == 0x3E){val = 8;}
+        if(key == 0x46){val = 9;}
+        //read special characters
+        if(key == 0x76){val = 0xFF;} //esc
+        if(key == 0x66){val = 0xFE;} //backspace
+        if(key == 0x5A){val = 0xFD;} //enter
+        if(key == 0x6B){val = 0xFC;} //left arrow
+        if(key == 0x74){val = 0xFB;} //left arrow
+
+        if (keyboardDebounce > 1){
+			xQueueSendToBackFromISR(keyboardData, &val, pdFALSE);
+			keyboardDebounce = 0;
+			printf("inside ISR val is %x",val);
+        }
     }
 }
 
@@ -549,6 +577,7 @@ void SetUpMisc(void)
     thresholdROC = 60;
     thresholdFreq = 49;
     timeoutFinish = 0;
+    keyboardDebounce = -2; //value to debounce initial garbage values
 
     // create queues
     freqForDisplay = xQueueCreate(20, sizeof(double));

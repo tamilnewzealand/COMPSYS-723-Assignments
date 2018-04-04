@@ -58,7 +58,6 @@ SemaphoreHandle_t freqRelaySemaphore;
 
 /* Function Prototypes. */
 static void VGAController(void *pvParameters);
-static void HumanInteractions(void *pvParameters);
 static void LEDController(void *pvParameters);
 static void SwitchPoll(void *pvParameters);
 static void MainController(void *pvParameters);
@@ -89,7 +88,8 @@ typedef struct{
 /**
  * This task will read the data coming from the other tasks/ISRs and display the
  * necessary information in an appropriate format (graphical/textual) on the VGA
- * Display.
+ * Display. Controls all interactions with the computer via keyboard/screen.
+ * Calculates and stores new threshold values based on these interactions.
  */
 static void VGAController(void *pvParameters)
 {
@@ -114,8 +114,6 @@ static void VGAController(void *pvParameters)
 	}
 	alt_up_char_buffer_clear(char_buf);
 
-
-
 	//Set up plot axes
 	alt_up_pixel_buffer_dma_draw_hline(pixel_buf, 100, 590, 200, ((0x3ff << 20) + (0x3ff << 10) + (0x3ff)), 0);
 	alt_up_pixel_buffer_dma_draw_hline(pixel_buf, 100, 590, 300, ((0x3ff << 20) + (0x3ff << 10) + (0x3ff)), 0);
@@ -135,7 +133,6 @@ static void VGAController(void *pvParameters)
 	alt_up_char_buffer_string(char_buf, "-30", 9, 34);
 	alt_up_char_buffer_string(char_buf, "-60", 9, 36);
 
-
 	double freq[100], dfreq[100];
 	int i = 99, j = 0;
 	Line line_freq, line_roc;
@@ -150,7 +147,6 @@ static void VGAController(void *pvParameters)
 	alt_up_char_buffer_string(char_buf, "ROC threshold(Hz/sec):", 40, 55);
 
 	while(1){
-
 		//receive frequency data from queue
 		while(uxQueueMessagesWaiting(freqForDisplay) != 0){
 			xQueueReceive(freqForDisplay, freq+i, 0 );
@@ -168,9 +164,7 @@ static void VGAController(void *pvParameters)
 				dfreq[i] = 100.0;
 			}
 
-
 			i =	++i%100; //point to the next data (oldest) to be overwritten
-
 		}
 
 		//clear old graph to draw new graph
@@ -306,15 +300,6 @@ static void VGAController(void *pvParameters)
 		//delay the task then refresh the display
 		vTaskDelay(xDelay);
 	}
-}
-
-/**
- * Controls all interactions with the computer via keyboard/screen. Calculates
- * and stores new threshold values based on these interactions.
- */
-static void HumanInteractions(void *pvParameters)
-{
-    return;
 }
 
 /**
@@ -610,7 +595,6 @@ void SetUpISRs(void)
 void SetUpTasks(void)
 {
     xTaskCreate(VGAController, "VGA Controller Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-    xTaskCreate(HumanInteractions, "Human Interactions Task", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
     xTaskCreate(LEDController, "LED Controller Task", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
     xTaskCreate(SwitchPoll, "Switch Polling Task", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
     xTaskCreate(MainController, "Main Controller Task", configMINIMAL_STACK_SIZE, NULL, 3, NULL);

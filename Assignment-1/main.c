@@ -321,8 +321,8 @@ static void LEDController(void *pvParameters)
         else { loadStatus = loadStatusSwitch; }
 
         // write the status of the loads to the RED and GREEN LEDs
-        IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, loadStatus);
-        IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus)))));
+        IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
+        IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus)))));
 
         // calculate new reaction time
         if ((oldLoadStatus != loadStatus) && timeOfDetection != 0)

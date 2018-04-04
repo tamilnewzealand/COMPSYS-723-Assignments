@@ -44,6 +44,8 @@ static volatile int loadStatusController;
 static volatile double thresholdROC;
 static volatile double thresholdFreq;
 static volatile int timeoutFinish;
+static volatile int timeOfDetection;
+static volatile int lastReactionTime;
 
 /* Queues */
 static QueueHandle_t freqForDisplay;
@@ -93,6 +95,10 @@ static void VGAController(void *pvParameters)
 {
 	char keyPressed = 0x55;
 	const TickType_t xDelay = 40 / portTICK_PERIOD_MS;
+    int reactionTimes[5] = {0, 0, 0, 0, 0};
+    int reactionTimeCounter = 0;
+    int minReactionTime = 0, maxReactionTime = 0, avgReactionTime = 0;
+    int w;
 
     alt_up_pixel_buffer_dma_dev *pixel_buf;
 	pixel_buf = alt_up_pixel_buffer_dma_open_dev(VIDEO_PIXEL_BUFFER_DMA_NAME);
@@ -199,11 +205,67 @@ static void VGAController(void *pvParameters)
         else if (nextState == stable) { strncpy(systemStatus, "Stable", sizeof(systemStatus)); }
         else { strncpy(systemStatus, "Unstable", sizeof(systemStatus)); }
 
+        //Update and calculate reaction times
+        if (lastReactionTime != 0)
+        {
+            if (reactionTimeCounter > 4)
+            {
+                for (w = 0; w < 4; w++)
+                {
+                    reactionTimes[w] = reactionTimes[w+1];
+                }
+                reactionTimes[4] = lastReactionTime;
+            }
+            else
+            {
+                reactionTimes[reactionTimeCounter] = lastReactionTime;
+                reactionTimeCounter = ++reactionTimeCounter;
+            }
+            lastReactionTime = 0;
+
+            // find minimum, maximum & average
+
+            minReactionTime = 1000;
+            maxReactionTime = 0;
+            avgReactionTime = 0;
+            for (w = 0; w < 5; w++)
+            {
+                if (reactionTimes[w] < minReactionTime) { minReactionTime = reactionTimes[w]; }
+                if (reactionTimes[w] > maxReactionTime) { maxReactionTime = reactionTimes[w]; }
+                avgReactionTime += reactionTimes[w];
+            }
+
+            avgReactionTime /= 5;
+        }
+
 		//Get the System uptime based on freeRTOS TickCount which measures in ms,
 		//Then format it into a string to display
 		unsigned int uptime = xTaskGetTickCount()/1000;
 		char uptimeBuffer [sizeof(unsigned int)*8+1];
 		(void) sprintf(uptimeBuffer, "%u", uptime);
+
+        char minreactBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(minreactBuffer, "%u", minReactionTime);
+        char maxreactBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(maxreactBuffer, "%u", maxReactionTime);
+        char avgreactBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(avgreactBuffer, "%u", avgReactionTime);
+
+        char reactBufferA [sizeof(unsigned int)*8+1];
+		(void) sprintf(reactBufferA, "%u", reactionTimes[0]);
+        char reactBufferB [sizeof(unsigned int)*8+1];
+		(void) sprintf(reactBufferB, "%u", reactionTimes[1]);
+        char reactBufferC [sizeof(unsigned int)*8+1];
+		(void) sprintf(reactBufferC, "%u", reactionTimes[2]);
+        char reactBufferD [sizeof(unsigned int)*8+1];
+		(void) sprintf(reactBufferD, "%u", reactionTimes[3]);
+        char reactBufferE [sizeof(unsigned int)*8+1];
+		(void) sprintf(reactBufferE, "%u", reactionTimes[4]);
+
+        char lowThresBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(lowThresBuffer, "%u", thresholdFreq);
+        char highThresBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(highThresBuffer, "%u", thresholdROC);
 
         // check for any updates of new data
 		xQueueReceive(keyboardData, &keyPressed, 0);
@@ -226,24 +288,23 @@ static void VGAController(void *pvParameters)
 
 		//populate fields below the graph
 		//TODO: Make these data driven
-		alt_up_char_buffer_string(char_buf, "47.3", 32, 40); //Lower threshold
-		alt_up_char_buffer_string(char_buf, "0.60", 63, 40); //ROC threshold
-		alt_up_char_buffer_string(char_buf, "123", 25, 45); //latest reaction time
-		alt_up_char_buffer_string(char_buf, "234", 30, 45);
-		alt_up_char_buffer_string(char_buf, "360", 35, 45);
-		alt_up_char_buffer_string(char_buf, "200", 40, 45);
-		alt_up_char_buffer_string(char_buf, "447", 45, 45); //oldest reaction time
+		alt_up_char_buffer_string(char_buf, lowThresBuffer, 32, 40); //Lower threshold
+		alt_up_char_buffer_string(char_buf, highThresBuffer, 63, 40); //ROC threshold
+		alt_up_char_buffer_string(char_buf, reactBufferA, 25, 45); //latest reaction time
+		alt_up_char_buffer_string(char_buf, reactBufferB, 30, 45);
+		alt_up_char_buffer_string(char_buf, reactBufferC, 35, 45);
+		alt_up_char_buffer_string(char_buf, reactBufferD,40, 45);
+		alt_up_char_buffer_string(char_buf, reactBufferE, 45, 45); //oldest reaction time
 		alt_up_char_buffer_string(char_buf, systemStatus, 67, 45); //System status: {Stable, Unstable, Maintenance}
-		alt_up_char_buffer_string(char_buf, "73", 17, 50); //Min reaction time
-		alt_up_char_buffer_string(char_buf, "499", 30, 50); //Max reaction time
-		alt_up_char_buffer_string(char_buf, "213", 43, 50); //Avg reaction time
+		alt_up_char_buffer_string(char_buf, minreactBuffer, 17, 50); //Min reaction time
+		alt_up_char_buffer_string(char_buf, maxreactBuffer, 30, 50); //Max reaction time
+		alt_up_char_buffer_string(char_buf, avgreactBuffer, 43, 50); //Avg reaction time
 		alt_up_char_buffer_string(char_buf, uptimeBuffer, 58, 50); //Uptime
-		alt_up_char_buffer_string(char_buf, keyPressed, 32, 55);  //Lower threshold updating value
+		alt_up_char_buffer_string(char_buf, keyPressed, 32,  55);  //Lower threshold updating value
 		alt_up_char_buffer_string(char_buf, "temp", 63, 55); //ROC threshold updating value
 
 		//delay the task then refresh the display
 		vTaskDelay(xDelay);
-
 	}
 }
 
@@ -265,6 +326,7 @@ static void LEDController(void *pvParameters)
 {
     const TickType_t xDelay = 10 / portTICK_PERIOD_MS;
     int loadStatus;
+    int oldLoadStatus;
 
     while(1)
     {
@@ -276,6 +338,14 @@ static void LEDController(void *pvParameters)
         // write the status of the loads to the RED and GREEN LEDs
         IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, loadStatus);
         IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus)))));
+
+        // calculate new reaction time
+        if ((oldLoadStatus != loadStatus) && timeOfDetection != 0)
+        {
+            lastReactionTime = xTaskGetTickCount() - timeOfDetection;
+            timeOfDetection = 0;
+        }
+        oldLoadStatus = loadStatus;
 
         vTaskDelay(xDelay);
     }
@@ -336,7 +406,11 @@ static void MainController(void *pvParameters)
         switch(curState)
         {
             case stable:
-                if ((newFreqValue < thresholdFreq) || (newRateOfChange > thresholdROC)) { nextState = shedLoad; }
+                if ((newFreqValue < thresholdFreq) || (newRateOfChange > thresholdROC))
+                {
+                    nextState = shedLoad;
+                    timeOfDetection = xTaskGetTickCount();
+                }
                 else { nextState = stable; }
                 break;
             case shedLoad:

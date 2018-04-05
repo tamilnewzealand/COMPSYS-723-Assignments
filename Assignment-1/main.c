@@ -328,7 +328,7 @@ static void LEDController(void *pvParameters)
 			loadStatus = loadStatusController & loadStatusSwitch;
 			// write the status of the loads to the RED and GREEN LEDs
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
-			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus)))));
+			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus & loadStatusSwitch)))));
         // in maintenance mode
 		}else {
 			loadStatus = loadStatusSwitch;
@@ -442,9 +442,14 @@ static void MainController(void *pvParameters)
             case stable:
                 break;
             case shedLoad:
+                // increment last removed load counter
+            	if(loadStatusSwitch != 0){
+					while(((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0){
+						nextToDisconnect++;
+					}
+            	}
                 // disconnect load from system
                 loadStatusController &= ~(1UL << nextToDisconnect);
-                // increment last removed load counter
                 nextToDisconnect++;
                 // reset monitor state variables
                 timeoutDirection = 0;
@@ -483,7 +488,12 @@ static void MainController(void *pvParameters)
                 break;
             case reconnectLoad:
                 // decrement last removed load counter
-                nextToDisconnect--;
+				nextToDisconnect--;
+				if(loadStatusSwitch != 0){
+					while(((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0){
+						nextToDisconnect--;
+					}
+				}
                 // reconnect load to system
                 loadStatusController |= (1UL << nextToDisconnect);
                 // reset monitor state variables
@@ -504,7 +514,6 @@ static void MainController(void *pvParameters)
  */
 void KeyboardISR (void* context, alt_u32 id)
 {
-	printf("inside ISR");
 	keyboardDebounce = keyboardDebounce + 1;
     char ascii;
     int status = 0;
@@ -535,7 +544,6 @@ void KeyboardISR (void* context, alt_u32 id)
         if (keyboardDebounce > 1){
 			xQueueSendToBackFromISR(keyboardData, &val, pdFALSE);
 			keyboardDebounce = 0;
-			printf("inside ISR val is %x",val);
         }
     }
 }
@@ -617,6 +625,9 @@ void SetUpISRs(void)
 
     // register the keyboard ISR
     alt_irq_register(PS2_IRQ, ps2_device, KeyboardISR);
+
+    // register the PS/2 interrupt
+    IOWR_8DIRECT(PS2_BASE,4,1);
 
     // clears the edge capture register
     IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0);

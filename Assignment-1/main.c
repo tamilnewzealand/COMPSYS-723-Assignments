@@ -324,13 +324,18 @@ static void LEDController(void *pvParameters)
     while(1)
     {
         // not in maintenance mode
-        if (currentState == 0) { loadStatus = loadStatusController & loadStatusSwitch; }
+        if (currentState == 0){
+			loadStatus = loadStatusController & loadStatusSwitch;
+			// write the status of the loads to the RED and GREEN LEDs
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
+			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus)))));
         // in maintenance mode
-        else { loadStatus = loadStatusSwitch; }
-
-        // write the status of the loads to the RED and GREEN LEDs
-        IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
-        IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus)))));
+		}else { 
+			loadStatus = loadStatusSwitch; 
+			// write the status of the loads to the LEDs green LEDs should always be off
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
+			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0x0000);
+		}     
 
         // calculate new reaction time
         if ((oldLoadStatus != loadStatus) && timeOfDetection != 0)

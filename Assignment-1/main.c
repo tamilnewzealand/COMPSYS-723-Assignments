@@ -330,12 +330,12 @@ static void LEDController(void *pvParameters)
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
 			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus)))));
         // in maintenance mode
-		}else { 
-			loadStatus = loadStatusSwitch; 
+		}else {
+			loadStatus = loadStatusSwitch;
 			// write the status of the loads to the LEDs green LEDs should always be off
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
 			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0x0000);
-		}     
+		}
 
         // calculate new reaction time
         if ((oldLoadStatus != loadStatus) && timeOfDetection != 0)
@@ -358,8 +358,16 @@ static void SwitchPoll(void *pvParameters)
 
     while(1)
     {
+    	//if stable user can turn on/off loads
+    	if(curState == stable){
         // read the value of the switch and store
         loadStatusSwitch = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
+    	//if not stable can only turn off loads
+    	}else{
+    		if (IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE) < loadStatusSwitch){
+    			loadStatusSwitch = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
+    		}
+    	}
         vTaskDelay(xDelay);
     }
 }

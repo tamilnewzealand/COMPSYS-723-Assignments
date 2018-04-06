@@ -95,12 +95,15 @@ typedef struct{
  */
 static void VGAController(void *pvParameters)
 {
-	char keyPressed = 0x55;
+	unsigned char keyPressed = 0;
 	const TickType_t xDelay = 40 / portTICK_PERIOD_MS;
     int reactionTimes[5] = {0, 0, 0, 0, 0};
     int reactionTimeCounter = 0;
     int minReactionTime = 0, maxReactionTime = 0, avgReactionTime = 0;
     int w;
+    double tempThresholdFreq = 0;
+    double tempThresholdROC = 0;
+    int tempThresholdIndex = 0;
 
     alt_up_pixel_buffer_dma_dev *pixel_buf;
 	pixel_buf = alt_up_pixel_buffer_dma_open_dev(VIDEO_PIXEL_BUFFER_DMA_NAME);
@@ -266,10 +269,36 @@ static void VGAController(void *pvParameters)
         // check for any updates of new data
 		while(uxQueueMessagesWaiting(keyboardData) != 0){
 			xQueueReceive(keyboardData, &keyPressed, 0);
+			if(keyPressed == 0xFD){//enter key so transfer temp values to thresholds
+				if(tempThresholdIndex ==6){
+					thresholdFreq = tempThresholdFreq;
+					thresholdROC = tempThresholdROC;
+					tempThresholdFreq = 0;
+					tempThresholdROC = 0;
+					tempThresholdIndex = 0;
+					printf("enter pressed");
+				}
+			}else if(keyPressed == 0xFF){//esc key so reset all temp variables
+				tempThresholdFreq = 0;
+				tempThresholdROC = 0;
+				tempThresholdIndex = 0;
+				printf("esc pressed");
+			}else{
+				if (tempThresholdIndex == 0){tempThresholdFreq = keyPressed*10;}
+				else if(tempThresholdIndex == 1){tempThresholdFreq += keyPressed;}
+				else if(tempThresholdIndex == 2){tempThresholdFreq += (double)keyPressed/10;}
+				else if(tempThresholdIndex == 3){tempThresholdROC = keyPressed*10;}
+				else if(tempThresholdIndex == 4){tempThresholdROC += keyPressed;}
+				else if(tempThresholdIndex == 5){tempThresholdROC += (double)keyPressed/10;}
+				tempThresholdIndex++;
+			}
+			printf("tempThresholdFreq: %04.1f tempThresholdROC: %04.1f\n",tempThresholdFreq, tempThresholdROC);
 		}
 
-		 char tempThresholdROCBuffer [sizeof(unsigned int)*8+1];
-		(void) sprintf(tempThresholdROCBuffer, "%d", keyPressed);
+		char tempThresholdFreqBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(tempThresholdFreqBuffer, "%04.1f", tempThresholdFreq);
+		char tempThresholdROCBuffer [sizeof(unsigned int)*8+1];
+		(void) sprintf(tempThresholdROCBuffer, "%04.1f", tempThresholdROC);
 
 
         //Clear text that is being updated
@@ -302,8 +331,8 @@ static void VGAController(void *pvParameters)
 		alt_up_char_buffer_string(char_buf, maxreactBuffer, 30, 50); //Max reaction time
 		alt_up_char_buffer_string(char_buf, avgreactBuffer, 43, 50); //Avg reaction time
 		alt_up_char_buffer_string(char_buf, uptimeBuffer, 58, 50); //Uptime
-		alt_up_char_buffer_string(char_buf, tempThresholdROCBuffer, 32,  55);  //Lower threshold updating value
-		alt_up_char_buffer_string(char_buf, "temp", 63, 55); //ROC threshold updating value
+		alt_up_char_buffer_string(char_buf, tempThresholdFreqBuffer, 32,  55);  //Lower threshold updating value
+		alt_up_char_buffer_string(char_buf, tempThresholdROCBuffer, 63, 55); //ROC threshold updating value
 
 		//delay the task then refresh the display
 		vTaskDelay(xDelay);

@@ -47,6 +47,7 @@ static volatile int timeoutFinish;
 static volatile int timeOfDetection;
 static volatile int lastReactionTime;
 static volatile int keyboardDebounce;
+static volatile int lowestSwitch;
 
 /* Queues */
 static QueueHandle_t freqForDisplay;
@@ -265,7 +266,6 @@ static void VGAController(void *pvParameters)
         // check for any updates of new data
 		while(uxQueueMessagesWaiting(keyboardData) != 0){
 			xQueueReceive(keyboardData, &keyPressed, 0);
-			printf("data received!");
 		}
 
 		 char tempThresholdROCBuffer [sizeof(unsigned int)*8+1];
@@ -325,13 +325,13 @@ static void LEDController(void *pvParameters)
     {
         // not in maintenance mode
         if (currentState == 0){
-			loadStatus = loadStatusController & loadStatusSwitch;
+			loadStatus = ((loadStatusController & loadStatusSwitch) & 0xFF);
 			// write the status of the loads to the RED and GREEN LEDs
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
 			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, (((currentState << 17) | (0x00FF & (~loadStatus & loadStatusSwitch)))));
         // in maintenance mode
 		}else {
-			loadStatus = loadStatusSwitch;
+			loadStatus = (loadStatusSwitch & 0xFF);
 			// write the status of the loads to the LEDs green LEDs should always be off
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, loadStatus);
 			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0x0000);
@@ -359,7 +359,7 @@ static void SwitchPoll(void *pvParameters)
     while(1)
     {
     	//if stable user can turn on/off loads
-    	if(curState == stable){
+    	if(curState == stable || currentState == 1){
         // read the value of the switch and store
         loadStatusSwitch = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
     	//if not stable can only turn off loads
@@ -367,6 +367,12 @@ static void SwitchPoll(void *pvParameters)
     		if (IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE) < loadStatusSwitch){
     			loadStatusSwitch = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
     		}
+    	}
+    	lowestSwitch = 0;
+    	if(loadStatusSwitch != 0){
+			while(((loadStatusSwitch >> lowestSwitch) & 1UL) == 0){
+				lowestSwitch = lowestSwitch + 1;
+			}
     	}
         vTaskDelay(xDelay);
     }
@@ -444,7 +450,7 @@ static void MainController(void *pvParameters)
             case shedLoad:
                 // increment last removed load counter
             	if(loadStatusSwitch != 0){
-					while(((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0){
+					while((((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0) & (nextToDisconnect < 7)){
 						nextToDisconnect++;
 					}
             	}
@@ -490,7 +496,7 @@ static void MainController(void *pvParameters)
                 // decrement last removed load counter
 				nextToDisconnect--;
 				if(loadStatusSwitch != 0){
-					while(((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0){
+					while((((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0) & (nextToDisconnect > lowestSwitch+1)){ //This needs to be done differently
 						nextToDisconnect--;
 					}
 				}
@@ -599,6 +605,7 @@ void SetUpMisc(void)
     thresholdFreq = 49;
     timeoutFinish = 0;
     keyboardDebounce = -2; //value to debounce initial garbage values
+    lowestSwitch = 0;
 
     // create queues
     freqForDisplay = xQueueCreate(20, sizeof(double));

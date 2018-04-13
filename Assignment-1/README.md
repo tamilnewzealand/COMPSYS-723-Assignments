@@ -1,114 +1,33 @@
-# Paper Plan for Assignment 1
+# Assignment 1 - Group 15
 
-*March 29, 2018 - Joshua Gudsell & Sakayan Sitsabesan*
+## COMPSYS 723 - Embedded Systems Design
 
-## Block Diagram
+*April 14, 2018 - Joshua Gudsell & Sakayan Sitsabesan*
 
-![](BlockDiagram.png)
+## IMPORTANT NOTE:
 
-## Use Case
+Make sure there are NO space characters for all files used. There are known software issues caused by these spaces, so please extract this file in place with no such thing.
 
-A frequency value lower than the threshold is read by the frequency analyser. The system was in the stable state prior to this event and has been monitoring the frequency (i.e. not in maintenance mode).
-After 20 milliseconds, a new frequency reading above the threshold is read.
+## SETUP INSTRUCTIONS:
+1. After extracting the contents of this file, open "Quartus Prime 16.1 Programmer"
+2. Click on 'Add File'
+3. Select 'freq_relay_controller.sof' and make sure the Altera DE2-115 is connected to the computer
+4. Press the 'Start' button making sure 'Program/Configure' is ticked
+5. Open "Nios II 16.1 Software Build Tools for Eclipse"
+7. From the File -> New menu create a new Nios II application and BSP from Template using the provided nios2.sopcinfo and the Hello World template.
+6. Add the provided folder 'FreeRTOS' and the 'main.c' file, while deleting the 'hello.c' file
+7. Select the 'Build All' option (Ctrl + B)
+8. After successfully building the project, right click 'DDPacemaker'
+9. Under 'Run as' select '3 Nios II Hardware'
 
-*Our steps to respond to this change are as follows:*
+## USAGE INSTRUCTIONS:
+- Any of the switches from 0-7 can be used to control a load
+- Any of the push buttons excluding KEY0 can be used to enter maintenance mode
+- To configure the thresholds simply use the number row on the keyboard
+- Six values must be entered (three for frequency threshold and three for rate of change threshold)
+- Pressing enter will transfer the temporary new thresholds to the actual threshold values
+- The escape key can be pressed to restart the process and correct any errors
 
-1. The FrequencyRelayISR will read the frequency and pass on the value to the MainController and set the freqRelaySemaphore to trigger the MainController.
-2. This will cause the MainController FSM to move into the shed load state and remove one of the loads.
-3. The MainController FSM will then move into the monitor state, the timeout timer will be started.
-4. The MainController FSM will stay in the monitoring state.
-5. The MainController FSM will then detect the new frequency as above the threshold and will reset the timeout timer due to a change in the frequency.
-7. The MainController will stay in the monitoring state until the timeoutCallback function is called which will trigger the MainController to move into the reconnectLoad state using the timeoutFinish global variable.
+## QUESTION & QUERIES:
 
-## Tasks
-
-* VGAController (Priority 1)
-    * Description: This task will read the data coming from the other tasks/ISRs and display the necessary information in an appropriate format (graphical/textual) on the VGA Display.
-    * Condition: TaskDelay every 40ms
-    * Queues read: freqForDisplay, changeInFreqForDisplay
-    * Variables read: displayText
-* MainController (Priority 3)
-    * Description: This is the central controller task that makes the major logic decisions in this program, more details can be found in FSM diagram below.
-    * Condition: Wait on freqRelaySemaphore
-    * Queues read: rawFreqData
-    * Queues written: freqForDisplay, changeInFreqForDisplay
-    * Variables read: thresholdROC, timeoutFinish
-    * Variables written: loadStatusController
-* HumanInteractions (Priority 1)
-    * Description: Controls all interactions with the computer via keyboard/screen. Calculates and stores new threshold values based on these interactions.
-    * Condition: Wait on keyboardSemaphore
-    * Queues read: keyboardData
-    * Variables written: thresholdFreq, thresholdROC, displayText
-* LEDController (Priority 2)
-    * Description: Calculates the current status of the loads and sets the LEDs appropriately. In normal mode will read from two variables coming from the controller and switches while in maintenance mode will only read from the switches.
-    * Condition: TaskDelay every 10ms
-    * Variables read: currentState, loadStatusSwitch, loadStatusController
-* SwitchPoll (Priority 2)
-    * Description: Polls the switches and writes their current status to a global variable
-    * Condition: TaskDelay every 10ms
-    * Variables written: loadStatusSwitch
-
-## ISR
-
-* KeyboardISR
-    * Description: Reads and records the key presses registered on the PS/2 keyboard.
-    * Condition: Interrupt on keyboard event
-    * Queues written: keyboardData
-    * Sets keyboardSemaphore
-* PushButtonISR
-    * Description: Reads the events occurring on the push buttons and passes on appropriate messages to the appropriate task to initiate the associated task. 
-    * Condition: Interrupt on push button event
-    * Variables written: currentState
-* FrequencyRelayISR
-    * Description: Reads the frequency from the hardware component 
-    * Condition: Interrupt on hardware trigger event
-    * Queues written: rawFreqData
-    * Sets freqRelaySemaphore
-
-## Global Variables
-
-* currentState - bool
-    * True => in maintenance mode
-    * False => not in maintenance mode
-* displayText - string
-    * Contains misc other text that should be printed on the screen
-* loadStatusSwitch - uint8_t
-    * bits 1 - 5 represent the current status of each load as input by the user via switches
-    * 0 => Load disconnected
-    * 1 => Load connected
-* loadStatusController - uint8_t
-    * bits 1 - 5 represent the current status of each load as desired by the controller
-    * 0 => Load disconnected
-    * 1 => Load connected
-* thresholdROC - uint8_t
-    * Stores the value of the currently set Rate of Change threshold
-* thresholdFreq - uint8_t
-    * Stores the value of the currently set frequency threshold
-* timeoutFinish - bool
-    * True - timeout of 500ms has been completed without any resets
-    * False - timeout yet to be completed
-## Queues
-
-* freqForDisplay
-     * list of values for displaying by the VGA controller
-* changeInFreqForDisplay
-    * list of values for displaying by the VGA controller
-* rawFreqData
-    * list of values coming from hardware component
-* keyboardData
-    * list of ASCII codes for the key presses occurring
-
-## Semaphores
-
-* keyboardSemaphore
-* freqRelaySemaphore
-
-## Timer Callback Function
-
-* vTimeoutCallback
-    * Description: Sets timeoutFinish variable and also sets freqRelaySemaphore
-    * Condition: Callback function after 500ms have timed out from when system became stable/unstable
-
-## FSM Diagram
-
-![](ControlFSM.png)
+For any questions or queries please contact Joshua Gudsell and/or Sakayan Sitsabesan.

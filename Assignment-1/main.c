@@ -51,7 +51,6 @@ static volatile int lowestSwitch;
 
 /* Queues */
 static QueueHandle_t freqForDisplay;
-static QueueHandle_t changeInFreqForDisplay;
 static QueueHandle_t rawFreqData;
 static QueueHandle_t keyboardData;
 
@@ -441,7 +440,6 @@ static void MainController(void *pvParameters)
 
         // send calculated freq and ROC values to queue for VGA controller task
         xQueueSendToBack(freqForDisplay, &newFreqValue, 0);
-        xQueueSendToBack(changeInFreqForDisplay, &newRateOfChange, 0);
 
         // next state logic
         switch(curState)
@@ -638,7 +636,6 @@ void SetUpMisc(void)
 
     // create queues
     freqForDisplay = xQueueCreate(20, sizeof(double));
-    changeInFreqForDisplay = xQueueCreate(20, sizeof(double));
     rawFreqData = xQueueCreate(5, sizeof(unsigned int));
     keyboardData = xQueueCreate(100, sizeof(char));
 

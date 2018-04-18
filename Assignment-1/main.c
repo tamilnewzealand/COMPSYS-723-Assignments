@@ -477,7 +477,7 @@ static void MainController(void *pvParameters)
             case shedLoad:
                 // increment last removed load counter
             	if(loadStatusSwitch != 0){
-					while((((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0) & (nextToDisconnect < 7)){
+					while((((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0) & (nextToDisconnect < 8)){
 						nextToDisconnect++;
 					}
             	}
@@ -523,7 +523,7 @@ static void MainController(void *pvParameters)
                 // decrement last removed load counter
 				nextToDisconnect--;
 				if(loadStatusSwitch != 0){
-					while((((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0) & (nextToDisconnect > lowestSwitch+1)){ //This needs to be done differently
+					while((((loadStatusSwitch >> nextToDisconnect) & 1UL) == 0) & (nextToDisconnect > lowestSwitch)){ //This needs to be done differently
 						nextToDisconnect--;
 					}
 				}

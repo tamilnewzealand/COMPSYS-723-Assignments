@@ -1,0 +1,71 @@
+module CruiseControl:
+
+constant PedalsMin = 3.00 : float;
+constant SpeedMin = 30.00 : float;
+constant SpeedMax = 150.00 : float;
+
+input On;
+input Off;
+input Resume;
+input Set;
+input QuickDecel;
+input QuickAccel;
+input Accel : float;
+input Brake : float;
+input Speed : float;
+
+output CruiseSpeed : float;
+output ThrottleCmd : float;
+output CruiseState := 1 : integer;
+
+% OFF-1 ON-2 STDBY-3 DIS-4
+var state := 1 : integer integer
+loop
+	% OFF STATE LOGIC
+	if state = 1 then
+		present On then state := 2;
+	end if;
+	% ON STATE LOGIC
+	if state = 2 then
+		present Off then state := 1;
+		if Accel > PedalsMin then
+			state := 4;
+		end if;
+		if Speed < SpeedMin then
+			state := 4;
+		end if;
+		if Speed > SpeedMax then
+			state := 4;
+		end if;
+		if Brake > PedalsMin then
+			state := 3;
+		end if;
+	end if;
+	% STANDBY STATE LOGIC
+	if state = 3 then
+		present Off then state := 1;
+		present Resume then
+			if Accel > PedalsMin then
+				state := 4;
+			end if;
+			if Speed < SpeedMin then
+				state := 4;
+			end if;
+			if Speed > SpeedMax then
+				state := 4;
+			end if;
+			if (Speed > SpeedMin) and (Speed < SpeedMax) then
+				state := 1;
+			end if;
+	end if;
+	% DISABLE STATE LOGIC
+	if state = 4 then
+		present Off then state := 1;
+		if (Accel < PedalsMin) and (Speed > SpeedMin) and (Speed < SpeedMax) then
+			state := 1;
+		end if;
+	end if;
+	sustain CruiseState(state);
+end loop
+end var
+end module

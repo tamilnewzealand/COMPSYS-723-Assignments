@@ -16,8 +16,8 @@ output CruiseState : integer;
 % OFF-1 ON-2 STDBY-3 DIS-4
 var state := 1 : integer in
 	loop
-		pause;
 		emit CruiseState(state);
+		pause;
 		trap T2 in
 			% OFF STATE LOGIC
 			if state = 1 then
@@ -96,8 +96,8 @@ input Speed : float;
 
 var CurrentSpeed := Zero : float in
 	loop
-		pause;
 		emit CruiseSpeed(CurrentSpeed);
+		pause;
 		trap T3 in
 			% OFF STATE LOGIC
 			if ?CruiseState = 1 then
@@ -131,4 +131,38 @@ var CurrentSpeed := Zero : float in
 		end trap
 	end loop
 end var
+end module
+
+module ThrottleManagement:
+
+input Accel : float;
+input CruiseSpeed : float;
+input CruiseState : integer;
+input CurrentSpeed : float;
+output ThrottleCmd : float;
+
+function regulateThrottle(integer, float, float) : float;
+
+loop
+	pause;
+	trap T3 in
+		% OFF STATE LOGIC
+		if ?CruiseState = 0 then
+			emit ThrottleCmd(?Accel);
+			exit T3;
+		% IF JUST SWITCHED TO ON STATE, LOAD CURRENT SPEED
+		elsif ((?CruiseState = 0) and (pre(?CruiseState) = 1)) then
+			emit ThrottleCmd(regulateThrottle(1, ?CruiseSpeed, ?CurrentSpeed));
+			exit T3;
+		% ALREADY IN ON STATE
+		elsif ?CruiseState = 1 then
+			emit ThrottleCmd(regulateThrottle(0, ?CruiseSpeed, ?CurrentSpeed));
+			exit T3;
+		% IN STANDBY OR DISABLE BYPASS CRUISECONTROL
+		else
+			emit ThrottleCmd(?Accel);
+			exit T3;
+		end if;
+	end trap
+end loop
 end module

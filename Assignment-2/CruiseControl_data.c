@@ -38,7 +38,7 @@ float regulateThrottle(int isGoingOn, float cruiseSpeed, float vehicleSpeed)
 	static bool saturate = true;
 	static float iterm = 0;
 	
-	if (isGoingOn = 1) {
+	if (isGoingOn == 1) {
 		iterm = 0;	// reset the integral action
 		saturate = true;	
 	}

@@ -80,11 +80,10 @@ end module
 
 module CruiseSpeedManagement:
 
-constant SpeedMin = 30.00 : float;
-constant SpeedMax = 150.00 : float;
-constant SpeedMini = 32.500 : float;
-constant SpeedMaxi = 147.50 : float;
-constant SpeedInc = 2.50 : float;
+constant SpeedMini : float;
+constant SpeedMaxi : float;
+constant SpeedInc : float;
+constant Zero : float;
 
 input Set;
 input QuickDecel;
@@ -93,43 +92,43 @@ input Accel : float;
 input CruiseState : integer;
 
 output CruiseSpeed : float;
-output ThrottleCmd : float;
 input Speed : float;
 
-function regulateThrottle(boolean, float, float) : float;
-
-var CurrentSpeed : integer;
+var CurrentSpeed := Zero : float in
 loop
+	pause;
+	emit CruiseSpeed(CurrentSpeed);
+	trap T3 in
 	% OFF STATE LOGIC
-	if CruiseState = 1 then
-		CurrentSpeed := 0;
-		emit ThrottleCmd(Accel);
+	if ?CruiseState = 1 then
+		CurrentSpeed := Zero;
+		exit T3;
 	% ALL OTHER STATES
 	else
-		present Set then CurrentSpeed := Speed end;
+		present Set then
+			CurrentSpeed := ?Speed;
+			exit T3;
+		end present;
 		present QuickAccel then
 			if CurrentSpeed < SpeedMaxi then
-				CurrentSpeed := (pre(?CurrentSpeed) + SpeedInc);
+				CurrentSpeed := CurrentSpeed + SpeedInc;
+				exit T3;
 			end if;
 		end present;
 		present QuickDecel then
 			if CurrentSpeed > SpeedMini then
-				CurrentSpeed := (pre(?CurrentSpeed) - SpeedInc);
+				CurrentSpeed := CurrentSpeed - SpeedInc;
+				exit T3;
 			end if;
 		end present;
 		% IF JUST SWITCHED TO ON STATE, LOAD CURRENT SPEED
-		if ((CruiseState = 2) and (pre(?CruiseState) = 1)) then
-			CurrentSpeed := Speed;
-			emit ThrottleCmd(regulateThrottle(1, CurrentSpeed, Speed));
+		if ((?CruiseState = 2) and (pre(?CruiseState) = 1)) then
+			CurrentSpeed := ?Speed;
+			exit T3;
 		end if;
-		elsif CruiseState = 1 then
-			emit ThrottleCmd(regulateThrottle(0, CurrentSpeed, Speed));
-		else
-			emit ThrottleCmd(Accel);
-		end if;
+		exit T3;
 	end if;
-	sustain CruiseSpeed(CurrentSpeed);
-	pause
+	end trap
 end loop
 end var
 end module

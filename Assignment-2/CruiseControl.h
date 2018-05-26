@@ -7,3 +7,5 @@
 #define SpeedInc 2.50
 
 #define Zero 0.00
+
+float regulateThrottle(int isGoingOn, float cruiseSpeed, float vehicleSpeed);

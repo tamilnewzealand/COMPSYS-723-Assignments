@@ -15,66 +15,66 @@ output CruiseState : integer;
 
 % OFF-1 ON-2 STDBY-3 DIS-4
 var state := 1 : integer in
-loop
-	pause;
-	emit CruiseState(state);
-	trap T2 in
-	% OFF STATE LOGIC
-	if state = 1 then
-		present On then
-			state := 2; exit T2;
-		end present;
-	end if;
-	% ON STATE LOGIC
-	if state = 2 then
-		present Off then state := 1 end;
-		if pre(?Accel) > PedalsMin then
-			state := 4; exit T2;
-		end if;
-		if pre(?Speed) < SpeedMin then
-			state := 4; exit T2;
-		end if;
-		if pre(?Speed) > SpeedMax then
-			state := 4; exit T2;
-		end if;
-		if pre(?Brake) > PedalsMin then
-			state := 3; exit T2;
-		end if;
-		exit T2;
-	end if;
-	% STANDBY STATE LOGIC
-	if state = 3 then
-		present Off then
-			state := 1; exit T2;
-		end present;
-		present Resume then
-			if pre(?Accel) > PedalsMin then
-				state := 4; exit T2;
+	loop
+		pause;
+		emit CruiseState(state);
+		trap T2 in
+			% OFF STATE LOGIC
+			if state = 1 then
+				present On then
+					state := 2; exit T2;
+				end present;
 			end if;
-			if pre(?Speed) < SpeedMin then
-				state := 4; exit T2;
+			% ON STATE LOGIC
+			if state = 2 then
+				present Off then state := 1 end;
+				if ?Accel > PedalsMin then
+					state := 4; exit T2;
+				end if;
+				if ?Speed < SpeedMin then
+					state := 4; exit T2;
+				end if;
+				if ?Speed > SpeedMax then
+					state := 4; exit T2;
+				end if;
+				if ?Brake > PedalsMin then
+					state := 3; exit T2;
+				end if;
+				exit T2;
 			end if;
-			if pre(?Speed) > SpeedMax then
-				state := 4; exit T2;
+			% STANDBY STATE LOGIC
+			if state = 3 then
+				present Off then
+					state := 1; exit T2;
+				end present;
+				present Resume then
+					if ?Accel > PedalsMin then
+						state := 4; exit T2;
+					end if;
+					if ?Speed < SpeedMin then
+						state := 4; exit T2;
+					end if;
+					if ?Speed > SpeedMax then
+						state := 4; exit T2;
+					end if;
+					if (?Speed > SpeedMin) and (?Speed < SpeedMax) then
+						state := 2; exit T2;
+					end if;
+				end present;
+				exit T2;
 			end if;
-			if (pre(?Speed) > SpeedMin) and (pre(?Speed) < SpeedMax) then
-				state := 2; exit T2;
+			% DISABLE STATE LOGIC
+			if state = 4 then
+				present Off then
+					state := 1; exit T2;
+				end present;
+				if (?Accel < PedalsMin) and (?Speed > SpeedMin) and (?Speed < SpeedMax) then
+					state := 2; exit T2;
+				end if;
+				exit T2;
 			end if;
-		end present;
-		exit T2;
-	end if;
-	% DISABLE STATE LOGIC
-	if state = 4 then
-		present Off then
-			state := 1; exit T2;
-		end present;
-		if (pre(?Accel) < PedalsMin) and (pre(?Speed) > SpeedMin) and (pre(?Speed) < SpeedMax) then
-			state := 2; exit T2;
-		end if;
-		exit T2;
-	end if;
-	end trap
-end loop
+		end trap
+	end loop
 end var
 end module
 
@@ -95,40 +95,40 @@ output CruiseSpeed : float;
 input Speed : float;
 
 var CurrentSpeed := Zero : float in
-loop
-	pause;
-	emit CruiseSpeed(CurrentSpeed);
-	trap T3 in
-	% OFF STATE LOGIC
-	if ?CruiseState = 1 then
-		CurrentSpeed := Zero;
-		exit T3;
-	% ALL OTHER STATES
-	else
-		present Set then
-			CurrentSpeed := ?Speed;
-			exit T3;
-		end present;
-		present QuickAccel then
-			if CurrentSpeed < SpeedMaxi then
-				CurrentSpeed := CurrentSpeed + SpeedInc;
+	loop
+		pause;
+		emit CruiseSpeed(CurrentSpeed);
+		trap T3 in
+			% OFF STATE LOGIC
+			if ?CruiseState = 1 then
+				CurrentSpeed := Zero;
+				exit T3;
+			% ALL OTHER STATES
+			else
+				present Set then
+					CurrentSpeed := ?Speed;
+					exit T3;
+				end present;
+				present QuickAccel then
+					if CurrentSpeed < SpeedMaxi then
+						CurrentSpeed := CurrentSpeed + SpeedInc;
+						exit T3;
+					end if;
+				end present;
+				present QuickDecel then
+					if CurrentSpeed > SpeedMini then
+						CurrentSpeed := CurrentSpeed - SpeedInc;
+						exit T3;
+					end if;
+				end present;
+				% IF JUST SWITCHED TO ON STATE, LOAD CURRENT SPEED
+				if ((?CruiseState = 2) and (pre(?CruiseState) = 1)) then
+					CurrentSpeed := ?Speed;
+					exit T3;
+				end if;
 				exit T3;
 			end if;
-		end present;
-		present QuickDecel then
-			if CurrentSpeed > SpeedMini then
-				CurrentSpeed := CurrentSpeed - SpeedInc;
-				exit T3;
-			end if;
-		end present;
-		% IF JUST SWITCHED TO ON STATE, LOAD CURRENT SPEED
-		if ((?CruiseState = 2) and (pre(?CruiseState) = 1)) then
-			CurrentSpeed := ?Speed;
-			exit T3;
-		end if;
-		exit T3;
-	end if;
-	end trap
-end loop
+		end trap
+	end loop
 end var
 end module

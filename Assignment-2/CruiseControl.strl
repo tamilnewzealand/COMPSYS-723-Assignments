@@ -11,63 +11,68 @@ input Accel : float;
 input Brake : float;
 input Speed : float;
 
-output CruiseState := 1 : integer;
+output CruiseState : integer;
 
 % OFF-1 ON-2 STDBY-3 DIS-4
 var state := 1 : integer in
 loop
-	pause
+	pause;
+	emit CruiseState(state);
 	trap T2 in
 	% OFF STATE LOGIC
 	if state = 1 then
-		present On then state := 2 end;
-		exit T2;
+		present On then
+			state := 2; exit T2;
+		end present;
 	end if;
 	% ON STATE LOGIC
 	if state = 2 then
 		present Off then state := 1 end;
 		if pre(?Accel) > PedalsMin then
-			state := 4;
+			state := 4; exit T2;
 		end if;
 		if pre(?Speed) < SpeedMin then
-			state := 4;
+			state := 4; exit T2;
 		end if;
 		if pre(?Speed) > SpeedMax then
-			state := 4;
+			state := 4; exit T2;
 		end if;
 		if pre(?Brake) > PedalsMin then
-			state := 3;
+			state := 3; exit T2;
 		end if;
 		exit T2;
 	end if;
 	% STANDBY STATE LOGIC
 	if state = 3 then
-		present Off then state := 1 end;
+		present Off then
+			state := 1; exit T2;
+		end present;
 		present Resume then
-			if Accel > PedalsMin then
-				state := 4;
+			if pre(?Accel) > PedalsMin then
+				state := 4; exit T2;
 			end if;
-			if Speed < SpeedMin then
-				state := 4;
+			if pre(?Speed) < SpeedMin then
+				state := 4; exit T2;
 			end if;
-			if Speed > SpeedMax then
-				state := 4;
+			if pre(?Speed) > SpeedMax then
+				state := 4; exit T2;
 			end if;
-			if (Speed > SpeedMin) and (Speed < SpeedMax) then
-				state := 1;
+			if (pre(?Speed) > SpeedMin) and (pre(?Speed) < SpeedMax) then
+				state := 2; exit T2;
 			end if;
 		end present;
 		exit T2;
 	end if;
 	% DISABLE STATE LOGIC
 	if state = 4 then
-		present Off then state := 1 end;
-		if (Accel < PedalsMin) and (Speed > SpeedMin) and (Speed < SpeedMax) then
-			state := 1;
+		present Off then
+			state := 1; exit T2;
+		end present;
+		if (pre(?Accel) < PedalsMin) and (pre(?Speed) > SpeedMin) and (pre(?Speed) < SpeedMax) then
+			state := 2; exit T2;
 		end if;
 		exit T2;
 	end if;
-	sustain CruiseState(state);
 	end trap
 end loop
 end var

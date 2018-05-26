@@ -196,15 +196,15 @@ loop
 	pause;
 	trap T3 in
 		% OFF STATE LOGIC
-		if ?CruiseState3 = 0 then
+		if ?CruiseState3 = 1 then
 			emit ThrottleCmd3(?Accel3);
 			exit T3;
 		% IF JUST SWITCHED TO ON STATE, LOAD CURRENT SPEED
-		elsif ((?CruiseState3 = 0) and (pre(?CruiseState3) = 1)) then
+		elsif ((?CruiseState3 = 2) and (pre(?CruiseState3) = 1)) then
 			emit ThrottleCmd3(regulateThrottle(1, ?CruiseSpeed3, ?CurrentSpeed3));
 			exit T3;
 		% ALREADY IN ON STATE
-		elsif ?CruiseState3 = 1 then
+		elsif ?CruiseState3 = 2 then
 			emit ThrottleCmd3(regulateThrottle(0, ?CruiseSpeed3, ?CurrentSpeed3));
 			exit T3;
 		% IN STANDBY OR DISABLE BYPASS CRUISECONTROL
